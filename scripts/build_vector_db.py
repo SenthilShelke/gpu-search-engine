@@ -11,11 +11,11 @@ sentences = []
 for i in range(10):
     sentences.append(dataset[i]["text"])
     
-embeddedVectors = model.encode(sentences, normalize_embeddings=True).astype(np.float32)
+embedded_vectors = model.encode(sentences, normalize_embeddings=True).astype(np.float32)
 
 with open("data/vector_db.bin", "wb") as db:
-    rows = embeddedVectors.shape[0]
-    cols = embeddedVectors.shape[1]
+    rows = embedded_vectors.shape[0]
+    cols = embedded_vectors.shape[1]
     header = np.array([rows, cols], dtype=np.int32)
     db.write(header.tobytes())
-    db.write(embeddedVectors.tobytes())
+    db.write(embedded_vectors.tobytes())
