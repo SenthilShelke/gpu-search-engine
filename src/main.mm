@@ -45,6 +45,15 @@ int main() {
 
     Matrix db = create_matrix("data/vector_db.bin");
     Matrix query = create_matrix("data/query.bin");
+    int db_bytes = db.data.size() * sizeof(float);
+    int query_bytes = query.data.size() * sizeof(float);
+    int result_bytes = db.rows * sizeof(float);
+
+    id<MTLDevice> device = MTLCreateSystemDefaultDevice();
+    id<MTLCommandQueue> command_queue = [device newCommandQueue];
+    id<MTLBuffer> db_buffer = [device newBufferWithBytes:db.data.data() length:db_bytes options:MTLResourceStorageModeShared];
+    id<MTLBuffer> query_buffer = [device newBufferWithBytes:query.data.data() length:query_bytes options:MTLResourceStorageModeShared];
+    id<MTLBuffer> result_buffer = [device newBufferWithLength:result_bytes options:MTLResourceStorageModeShared];
 
     return 0;
 }
