@@ -2,3 +2,6 @@
 path/
 data/
 .clangd
+main
+*.air
+*.metallib
