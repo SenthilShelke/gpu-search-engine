@@ -44,7 +44,7 @@ Matrix create_matrix(string file) {
 int main() {
 
     Matrix db = create_matrix("data/vector_db.bin");
-    Matrix query = create_matrix("data/vector_db.bin");
+    Matrix query = create_matrix("data/query.bin");
     int db_bytes = db.data.size() * sizeof(float);
     int query_bytes = query.data.size() * sizeof(float);
     int result_bytes = db.rows * sizeof(float);
