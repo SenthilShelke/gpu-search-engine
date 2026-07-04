@@ -19,4 +19,5 @@ with open("data/vector_db.bin", "wb") as db:
     for i in range(0, TOTAL_SENTENCES, BATCH_SIZE):
         sentences = dataset[i : i + BATCH_SIZE]["text"]
         embedded_vectors = model.encode(sentences, normalize_embeddings=True).astype(np.float32)
+        print(f"Writing sentences {i} to {i + BATCH_SIZE}")
         db.write(embedded_vectors.tobytes())

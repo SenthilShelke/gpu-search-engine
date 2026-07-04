@@ -49,16 +49,16 @@ int main() {
     int query_bytes = query.data.size() * sizeof(float);
     int result_bytes = db.rows * sizeof(float);
 
-    id<MTLDevice> device = MTLCreateSystemDefaultDevice();
-    id<MTLCommandQueue> command_queue = [device newCommandQueue];
-    id<MTLBuffer> db_buffer = [device newBufferWithBytes:db.data.data() length:db_bytes options:MTLResourceStorageModeShared];
-    id<MTLBuffer> query_buffer = [device newBufferWithBytes:query.data.data() length:query_bytes options:MTLResourceStorageModeShared];
-    id<MTLBuffer> result_buffer = [device newBufferWithLength:result_bytes options:MTLResourceStorageModeShared];
+    id<MTLDevice> gpu = MTLCreateSystemDefaultDevice();
+    id<MTLCommandQueue> command_queue = [gpu newCommandQueue];
+    id<MTLBuffer> db_buffer = [gpu newBufferWithBytes:db.data.data() length:db_bytes options:MTLResourceStorageModeShared];
+    id<MTLBuffer> query_buffer = [gpu newBufferWithBytes:query.data.data() length:query_bytes options:MTLResourceStorageModeShared];
+    id<MTLBuffer> result_buffer = [gpu newBufferWithLength:result_bytes options:MTLResourceStorageModeShared];
 
-    id<MTLLibrary> library = [device newDefaultLibrary];
+    id<MTLLibrary> library = [gpu newDefaultLibrary];
     id<MTLFunction> dot_product = [library newFunctionWithName:@"dot_product"];
     NSError* error = nil;
-    id<MTLComputePipelineState> pipeline_state = [device newComputePipelineStateWithFunction:dot_product error:&error];
+    id<MTLComputePipelineState> pipeline_state = [gpu newComputePipelineStateWithFunction:dot_product error:&error];
     if(!pipeline_state) {
         cout << "Failed to create pipeline state." << endl;
         exit(1);
