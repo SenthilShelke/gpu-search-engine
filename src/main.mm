@@ -3,6 +3,7 @@
 #include <vector>
 #include <queue>
 #include <string>
+#include <fstream>
 
 #import <Metal/Metal.h>
 #import <Foundation/Foundation.h>
@@ -108,11 +109,19 @@ int main() {
         }
     }
 
+    vector<int> top_indices(5);
     for(int i = 0; i < 5; i++) {
-        cout << "Index: " << min_heap.top().index << " Value: " << min_heap.top().value << endl;
+        top_indices[i] = min_heap.top().index;
         min_heap.pop();
     }
 
+    ofstream results_file("data/results.bin", ios::out | ios::binary);
+    if(!results_file) {
+        cerr << "Error opening results file." << endl;
+        return 1;
+    }
+    results_file.write(reinterpret_cast<char*>(top_indices.data()), top_indices.size() * sizeof(int));
+    results_file.close();
 
     return 0;
 }
