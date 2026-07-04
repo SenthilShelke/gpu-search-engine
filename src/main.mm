@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
+#include <queue>
 #include <string>
 
 #import <Metal/Metal.h>
@@ -13,6 +14,18 @@ class Matrix {
         int rows;
         int cols;
         vector<float> data;
+};
+
+class Pair {
+    public:
+        int index;
+        float value;
+
+        Pair(int _index, float _value) : index(_index), value(_value) {}
+
+        bool operator>(const Pair& other) const {
+            return value > other.value;
+        }
 };
 
 Matrix create_matrix(string file) {
@@ -79,10 +92,26 @@ int main() {
     [command_buffer waitUntilCompleted];
 
     float* results = (float*)result_buffer.contents;
-    for(int i = 0; i < 5; i++) {
-        cout << results[i] << endl;
-    } 
+    priority_queue<Pair, vector<Pair>, greater<Pair>> min_heap;
 
+    for(int i = 0; i < 5; i++) {
+        Pair pair = Pair(i, results[i]);
+        min_heap.push(pair);
+    }
+    for(int i = 5; i < 50000; i++) {
+        if(results[i] > min_heap.top().value) {
+            Pair pair = Pair(i, results[i]);
+            min_heap.pop();
+            min_heap.push((pair));
+        } else {
+            continue;
+        }
+    }
+
+    for(int i = 0; i < 5; i++) {
+        cout << "Index: " << min_heap.top().index << " Value: " << min_heap.top().value << endl;
+        min_heap.pop();
+    }
 
 
     return 0;
