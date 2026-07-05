@@ -3,6 +3,7 @@ from datasets import load_dataset
 import numpy as np
 import os
 import subprocess
+import time
 
 os.makedirs("data", exist_ok=True)
 model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
@@ -17,8 +18,12 @@ with open("data/query.bin", "wb") as query:
     query.write(header.tobytes())
     query.write(query_vector.tobytes())
 
-main_process = subprocess.run(["./main"], capture_output=True, text=True)
+start = time.perf_counter()
+subprocess.run(["./main"])
+end = time.perf_counter()
 
 top_indices = np.fromfile("data/results.bin", dtype=np.int32)
 for i in range(5):
     print(dataset[top_indices[i]]["text"])
+
+print(f"\nLatency: {(end - start) * 1000:.2f} ms")

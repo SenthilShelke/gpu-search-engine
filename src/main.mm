@@ -4,6 +4,9 @@
 #include <queue>
 #include <string>
 #include <fstream>
+#include <chrono>
+#include <utility>
+#include <memory>
 
 #import <Metal/Metal.h>
 #import <Foundation/Foundation.h>
@@ -14,7 +17,7 @@ class Matrix {
     public:
         int rows;
         int cols;
-        vector<float> data;
+        unique_ptr<float[]> data;
 };
 
 class Pair {
@@ -43,30 +46,38 @@ Matrix create_matrix(string file) {
     int cols = header[1];
 
     size_t size = rows * cols;
-    vector<float> data;
-    data.resize(size);
-    bin_file.read(reinterpret_cast<char*>(data.data()), size * sizeof(float));
+   
+    unique_ptr<float[]> data(new float[size]);
+    bin_file.read(reinterpret_cast<char*>(data.get()), size * sizeof(float));
+
 
     Matrix matrix;
     matrix.rows = rows;
     matrix.cols = cols;
-    matrix.data = data;
+    matrix.data = std::move(data);
 
     return matrix;
 }
 
 int main() {
 
+    auto t0 = chrono::high_resolution_clock::now();
+
     Matrix db = create_matrix("data/vector_db.bin");
     Matrix query = create_matrix("data/query.bin");
-    int db_bytes = db.data.size() * sizeof(float);
-    int query_bytes = query.data.size() * sizeof(float);
+
+    auto t1 = chrono::high_resolution_clock::now();
+    cout << "File loading: " 
+         << std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count() 
+         << " ms" << endl;
+    int db_bytes = db.rows * db.cols * sizeof(float);
+    int query_bytes = query.rows * query.cols * sizeof(float);
     int result_bytes = db.rows * sizeof(float);
 
     id<MTLDevice> gpu = MTLCreateSystemDefaultDevice();
     id<MTLCommandQueue> command_queue = [gpu newCommandQueue];
-    id<MTLBuffer> db_buffer = [gpu newBufferWithBytes:db.data.data() length:db_bytes options:MTLResourceStorageModeShared];
-    id<MTLBuffer> query_buffer = [gpu newBufferWithBytes:query.data.data() length:query_bytes options:MTLResourceStorageModeShared];
+    id<MTLBuffer> db_buffer = [gpu newBufferWithBytes:db.data.get() length:db_bytes options:MTLResourceStorageModeShared];
+    id<MTLBuffer> query_buffer = [gpu newBufferWithBytes:query.data.get() length:query_bytes options:MTLResourceStorageModeShared];
     id<MTLBuffer> result_buffer = [gpu newBufferWithLength:result_bytes options:MTLResourceStorageModeShared];
 
     id<MTLLibrary> library = [gpu newDefaultLibrary];
@@ -77,6 +88,10 @@ int main() {
         cout << "Failed to create pipeline state." << endl;
         exit(1);
     }
+    auto t2 = std::chrono::high_resolution_clock::now();
+    cout << "Metal setup: " 
+        << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() 
+        << " ms" << endl;
 
     id<MTLCommandBuffer> command_buffer = [command_queue commandBuffer];
     id<MTLComputeCommandEncoder> encoder = [command_buffer computeCommandEncoder];
@@ -91,6 +106,11 @@ int main() {
     [encoder endEncoding];
     [command_buffer commit];
     [command_buffer waitUntilCompleted];
+
+    auto t3 = std::chrono::high_resolution_clock::now();
+    cout << "GPU dispatch: " 
+     << std::chrono::duration_cast<std::chrono::milliseconds>(t3 - t2).count() 
+     << " ms" << endl;
 
     float* results = (float*)result_buffer.contents;
     priority_queue<Pair, vector<Pair>, greater<Pair>> min_heap;
