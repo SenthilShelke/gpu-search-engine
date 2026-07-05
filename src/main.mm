@@ -61,23 +61,15 @@ Matrix create_matrix(string file) {
 
 int main() {
 
-    auto t0 = chrono::high_resolution_clock::now();
-
     Matrix db = create_matrix("data/vector_db.bin");
-    Matrix query = create_matrix("data/query.bin");
 
-    auto t1 = chrono::high_resolution_clock::now();
-    cout << "File loading: " 
-         << std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count() 
-         << " ms" << endl;
     int db_bytes = db.rows * db.cols * sizeof(float);
-    int query_bytes = query.rows * query.cols * sizeof(float);
+    int query_bytes = 384 * sizeof(float);
     int result_bytes = db.rows * sizeof(float);
 
     id<MTLDevice> gpu = MTLCreateSystemDefaultDevice();
     id<MTLCommandQueue> command_queue = [gpu newCommandQueue];
     id<MTLBuffer> db_buffer = [gpu newBufferWithBytes:db.data.get() length:db_bytes options:MTLResourceStorageModeShared];
-    id<MTLBuffer> query_buffer = [gpu newBufferWithBytes:query.data.get() length:query_bytes options:MTLResourceStorageModeShared];
     id<MTLBuffer> result_buffer = [gpu newBufferWithLength:result_bytes options:MTLResourceStorageModeShared];
 
     id<MTLLibrary> library = [gpu newDefaultLibrary];
@@ -88,60 +80,53 @@ int main() {
         cout << "Failed to create pipeline state." << endl;
         exit(1);
     }
-    auto t2 = std::chrono::high_resolution_clock::now();
-    cout << "Metal setup: " 
-        << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() 
-        << " ms" << endl;
 
-    id<MTLCommandBuffer> command_buffer = [command_queue commandBuffer];
-    id<MTLComputeCommandEncoder> encoder = [command_buffer computeCommandEncoder];
+    vector<float> query(384);
+    while(cin.read(reinterpret_cast<char*>(query.data()), 384 * sizeof(float))) {
 
-    [encoder setComputePipelineState:pipeline_state];
-    [encoder setBuffer:db_buffer offset:0 atIndex:0];
-    [encoder setBuffer:query_buffer offset:0 atIndex:1];
-    [encoder setBuffer:result_buffer offset:0 atIndex:2];
+        int query_bytes = 384 * sizeof(float);
+        id<MTLBuffer> query_buffer = [gpu newBufferWithBytes:query.data() length:query_bytes options:MTLResourceStorageModeShared];
+        id<MTLCommandBuffer> command_buffer = [command_queue commandBuffer];
+        id<MTLComputeCommandEncoder> encoder = [command_buffer computeCommandEncoder];
 
-    MTLSize grid_size = MTLSizeMake(db.rows, 1, 1);
-    [encoder dispatchThreads:grid_size threadsPerThreadgroup:MTLSizeMake(64, 1, 1)];
-    [encoder endEncoding];
-    [command_buffer commit];
-    [command_buffer waitUntilCompleted];
+        [encoder setComputePipelineState:pipeline_state];
+        [encoder setBuffer:db_buffer offset:0 atIndex:0];
+        [encoder setBuffer:query_buffer offset:0 atIndex:1];
+        [encoder setBuffer:result_buffer offset:0 atIndex:2];
 
-    auto t3 = std::chrono::high_resolution_clock::now();
-    cout << "GPU dispatch: " 
-     << std::chrono::duration_cast<std::chrono::milliseconds>(t3 - t2).count() 
-     << " ms" << endl;
+        MTLSize grid_size = MTLSizeMake(db.rows, 1, 1);
+        [encoder dispatchThreads:grid_size threadsPerThreadgroup:MTLSizeMake(64, 1, 1)];
+        [encoder endEncoding];
+        [command_buffer commit];
+        [command_buffer waitUntilCompleted];
 
-    float* results = (float*)result_buffer.contents;
-    priority_queue<Pair, vector<Pair>, greater<Pair>> min_heap;
+        float* results = (float*)result_buffer.contents;
+        priority_queue<Pair, vector<Pair>, greater<Pair>> min_heap;
 
-    for(int i = 0; i < 5; i++) {
-        Pair pair = Pair(i, results[i]);
-        min_heap.push(pair);
-    }
-    for(int i = 5; i < 50000; i++) {
-        if(results[i] > min_heap.top().value) {
+        for(int i = 0; i < 5; i++) {
             Pair pair = Pair(i, results[i]);
-            min_heap.pop();
-            min_heap.push((pair));
-        } else {
-            continue;
+            min_heap.push(pair);
         }
-    }
+        for(int i = 5; i < 50000; i++) {
+            if(results[i] > min_heap.top().value) {
+                Pair pair = Pair(i, results[i]);
+                min_heap.pop();
+                min_heap.push((pair));
+            } else {
+                continue;
+            }
+        }
 
-    vector<int> top_indices(5);
-    for(int i = 0; i < 5; i++) {
-        top_indices[i] = min_heap.top().index;
-        min_heap.pop();
-    }
+        vector<int> top_indices(5);
+        for(int i = 0; i < 5; i++) {
+            top_indices[i] = min_heap.top().index;
+            min_heap.pop();
+        }
 
-    ofstream results_file("data/results.bin", ios::out | ios::binary);
-    if(!results_file) {
-        cerr << "Error opening results file." << endl;
-        return 1;
+        cout.write(reinterpret_cast<char*>(top_indices.data()), 5 * sizeof(int));
+        cout.flush();
+
     }
-    results_file.write(reinterpret_cast<char*>(top_indices.data()), top_indices.size() * sizeof(int));
-    results_file.close();
 
     return 0;
 }
