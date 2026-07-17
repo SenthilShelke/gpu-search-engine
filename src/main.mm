@@ -107,7 +107,7 @@ int main() {
             Pair pair = Pair(i, results[i]);
             min_heap.push(pair);
         }
-        for(int i = 5; i < 50000; i++) {
+        for(int i = 5; i < db.rows; i++) {
             if(results[i] > min_heap.top().value) {
                 Pair pair = Pair(i, results[i]);
                 min_heap.pop();

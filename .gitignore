@@ -1,7 +1,11 @@
 .venv
+.env
 path/
 data/
 .clangd
 main
 *.air
 *.metallib
+.kiro/
+__pycache__/
+scripts/__pycache__/
