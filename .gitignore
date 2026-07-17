@@ -2,6 +2,7 @@
 .env
 path/
 data/
+.corpus_cache/
 .clangd
 main
 *.air

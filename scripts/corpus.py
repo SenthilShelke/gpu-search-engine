@@ -1,3 +1,5 @@
+import json
+import os
 import time
 
 from datasets import get_dataset_config_names, load_dataset
@@ -7,6 +9,16 @@ from huggingface_hub.errors import HfHubHTTPError
 load_dotenv()
 
 DATASET_NAME = "RealTimeData/bbc_news_alltime"
+
+# On-disk cache for the available-months listing. Per-month article data is
+# already cached by `datasets`' own local cache (~/.cache/huggingface) once
+# downloaded, but list_available_months() calls the Hub API on every run to
+# discover configs, and that call alone can eat into the rate limit budget
+# on repeated runs. Caching it locally avoids that repeated API hit.
+# Delete .corpus_cache/ to force a refresh (e.g. to pick up a newly published
+# month, or new articles scraped into the current in-progress month).
+CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".corpus_cache")
+MONTHS_CACHE_FILE = os.path.join(CACHE_DIR, "months.json")
 
 
 class CorpusLoadError(Exception):
@@ -38,9 +50,23 @@ def list_available_months() -> list[str]:
     sorted newest-first (descending, e.g. ["2025-06", "2025-05", ..., "2017-01"]).
     Uses huggingface_hub / datasets config discovery. Config names are of the
     form "YYYY-MM", so a lexicographic descending sort is chronologically correct.
+
+    Cached to disk (.corpus_cache/months.json) so repeated calls across
+    process runs don't re-hit the Hub API. Delete the cache file (or the
+    .corpus_cache/ directory) to force a refresh, e.g. to pick up a newly
+    published month.
     """
-    months = get_dataset_config_names(DATASET_NAME)
-    return sorted(months, reverse=True)
+    if os.path.exists(MONTHS_CACHE_FILE):
+        with open(MONTHS_CACHE_FILE, "r") as f:
+            return json.load(f)
+
+    months = sorted(get_dataset_config_names(DATASET_NAME), reverse=True)
+
+    os.makedirs(CACHE_DIR, exist_ok=True)
+    with open(MONTHS_CACHE_FILE, "w") as f:
+        json.dump(months, f)
+
+    return months
 
 
 def _default_month_loader(month: str, max_retries: int = 5):
@@ -51,6 +77,12 @@ def _default_month_loader(month: str, max_retries: int = 5):
     This is a thin wrapper around `datasets.load_dataset` so that `get_corpus`
     can accept an injectable loader function (defaulting to this one) and
     tests can substitute a fake loader instead of hitting the network.
+
+    `datasets.load_dataset` already caches downloaded month data locally
+    (~/.cache/huggingface/datasets) and reuses it across runs without
+    re-downloading file contents. It still performs a Hub API call to
+    resolve which files exist for a month before checking that cache, which
+    is what the retry/backoff below guards against.
 
     Retries with exponential backoff on HF Hub rate-limit (429) errors, since
     unauthenticated (or even authenticated) requests can hit the Hub's API
