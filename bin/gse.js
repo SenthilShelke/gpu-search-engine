@@ -155,10 +155,21 @@ function search(engine, vector) {
   });
 }
 
+// Strips ASCII control characters (0x00-0x1F, 0x7F) other than the ones
+// safe to print as-is, before printing corpus text to the terminal. Corpus
+// entries come from a third-party scraped dataset (not from the user's own
+// query text), so this guards against terminal escape sequence injection
+// (e.g. ANSI codes that could rewrite the terminal title/colors) in case a
+// future corpus rebuild ever ingests such content upstream.
+function sanitizeForTerminal(text) {
+  return text.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "");
+}
+
 function printResults(indices, corpus) {
   console.log();
   for (const index of indices) {
-    console.log(corpus[index] ?? `<missing corpus entry at index ${index}>`);
+    const entry = corpus[index] ?? `<missing corpus entry at index ${index}>`;
+    console.log(sanitizeForTerminal(entry));
   }
   console.log();
 }
