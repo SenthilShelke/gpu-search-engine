@@ -28,7 +28,6 @@ const BINARY_PATH = path.join(NATIVE_DIR, "main-darwin-arm64");
 const CORPUS_PATH = path.join(NATIVE_DIR, "data", "corpus.json");
 
 const EMBEDDING_MODEL = "Xenova/all-MiniLM-L6-v2"; // model repo id (unchanged; @huggingface/transformers still resolves Xenova/* ONNX exports)
-const VECTOR_DIM = 384;
 const TOP_K = 5;
 
 function loadCorpus() {

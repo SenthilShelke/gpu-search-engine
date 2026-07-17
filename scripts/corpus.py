@@ -31,7 +31,8 @@ class CorpusLoadError(Exception):
 
 def combine_title_description(title: str, description: str) -> str | None:
     """
-    Pure function implementing Requirement 2.
+    Combines an article's title and description into the text used for both
+    embedding and display.
     Returns None if title is empty/whitespace-only (article excluded).
     Otherwise returns title, or title + " " + description if description is non-empty.
     """
@@ -101,20 +102,21 @@ def _default_month_loader(month: str, max_retries: int = 5):
 
 def get_corpus(max_rows: int = 50000, month_loader=_default_month_loader) -> list[str]:
     """
-    Public entry point used by both scripts (Requirement 5).
+    Public entry point used by both scripts (Vector_Db_Builder and Query_Client),
+    so both always see an identical, index-aligned corpus.
 
     Loads Monthly_Config data newest-to-oldest via list_available_months(),
     applies combine_title_description() to each article, appends non-None
     results to an accumulator, and stops as soon as len(accumulator) >= max_rows.
     Truncates the final list to exactly max_rows if it overshot mid-month.
-    Deterministic: same max_rows always yields the same list (Requirement 4).
+    Deterministic: same max_rows always yields the same list.
 
     `month_loader` is an injectable per-month loader function (month: str) ->
     iterable of records, defaulting to `_default_month_loader`. Tests can
     substitute a fake loader instead of hitting the network.
 
     Raises CorpusLoadError(month) if a Monthly_Config fails to load, identifying
-    which month failed (Requirement 1.4).
+    which month failed.
     """
     accumulator: list[str] = []
 

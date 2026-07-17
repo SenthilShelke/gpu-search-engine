@@ -3,7 +3,6 @@
 #include <vector>
 #include <queue>
 #include <string>
-#include <fstream>
 #include <chrono>
 #include <utility>
 #include <memory>
@@ -84,7 +83,6 @@ int main() {
     vector<float> query(384);
     while(cin.read(reinterpret_cast<char*>(query.data()), 384 * sizeof(float))) {
 
-        int query_bytes = 384 * sizeof(float);
         id<MTLBuffer> query_buffer = [gpu newBufferWithBytes:query.data() length:query_bytes options:MTLResourceStorageModeShared];
         id<MTLCommandBuffer> command_buffer = [command_queue commandBuffer];
         id<MTLComputeCommandEncoder> encoder = [command_buffer computeCommandEncoder];
