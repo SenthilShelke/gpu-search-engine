@@ -1,4 +1,5 @@
 from sentence_transformers import SentenceTransformer
+import json
 import numpy as np
 import os
 
@@ -48,3 +49,7 @@ for i in range(0, len(corpus_list), BATCH_SIZE):
 
 embeddings = np.concatenate(batches, axis=0) if batches else np.empty((0, cols), dtype=np.float32)
 write_vector_db("data/vector_db.bin", embeddings)
+
+with open("data/corpus.json", "w") as f:
+    json.dump(corpus_list, f)
+print(f"Wrote data/corpus.json ({len(corpus_list)} entries)")
