@@ -2,14 +2,24 @@
   "name": "gpu-search-engine",
   "version": "0.1.0",
   "description": "GPU-accelerated (Metal) semantic search over a BBC News corpus. Portfolio project demonstrating a custom Metal compute kernel for top-5 vector similarity search.",
-  "keywords": ["gpu", "metal", "semantic-search", "vector-search", "cli"],
+  "keywords": [
+    "gpu",
+    "metal",
+    "semantic-search",
+    "vector-search",
+    "cli"
+  ],
   "license": "MIT",
   "bin": {
-    "gse": "./bin/gse.js"
+    "gse": "bin/gse.js"
   },
   "type": "module",
-  "os": ["darwin"],
-  "cpu": ["arm64"],
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "arm64"
+  ],
   "engines": {
     "node": ">=18"
   },
