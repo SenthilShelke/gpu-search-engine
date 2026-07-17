@@ -36,7 +36,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/SenthilShelke/gpu-search-engine"
+    "url": "git+https://github.com/SenthilShelke/gpu-search-engine.git"
   },
   "publishConfig": {
     "registry": "https://npm.pkg.github.com"
