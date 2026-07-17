@@ -57,6 +57,16 @@ function spawnEngine() {
     console.error(`Failed to start the search engine binary: ${err.message}`);
     process.exit(1);
   });
+  // The engine can exit almost immediately after spawning (e.g. if it can't
+  // open native/data/vector_db.bin) -- often before the embedding model has
+  // even finished loading, well before search() gets a chance to attach its
+  // own listeners. Node's "exit" event doesn't replay for late listeners, so
+  // record exit state here, from the moment the process is spawned, and let
+  // search() consult it instead of relying on catching the event live.
+  engine.exitInfo = null;
+  engine.on("exit", (code, signal) => {
+    engine.exitInfo = { code, signal };
+  });
   return engine;
 }
 
@@ -72,13 +82,34 @@ async function embedQuery(embedder, text) {
 
 function search(engine, vector) {
   return new Promise((resolve, reject) => {
+    // The engine may have already exited (e.g. failed to open
+    // data/vector_db.bin at startup) before this search() call even
+    // started -- check the exit state recorded by spawnEngine() up front,
+    // since the "exit" event itself won't replay for a listener added now.
+    if (engine.exitInfo) {
+      reject(
+        new Error(
+          `Search engine exited unexpectedly (code ${engine.exitInfo.code}, signal ${engine.exitInfo.signal}) before returning results.`
+        )
+      );
+      return;
+    }
+
     const resultBytes = TOP_K * 4; // 5 x int32
     let received = Buffer.alloc(0);
+    let settled = false;
+
+    function cleanup() {
+      settled = true;
+      engine.stdout.removeListener("data", onData);
+      engine.removeListener("exit", onExit);
+      engine.stdin.removeListener("error", onStdinError);
+    }
 
     function onData(chunk) {
       received = Buffer.concat([received, chunk]);
       if (received.length >= resultBytes) {
-        engine.stdout.removeListener("data", onData);
+        cleanup();
         const indices = [];
         for (let i = 0; i < TOP_K; i++) {
           indices.push(received.readInt32LE(i * 4));
@@ -87,8 +118,37 @@ function search(engine, vector) {
       }
     }
 
+    // The engine can exit before (or instead of) returning a result, e.g. if
+    // it can't open data/vector_db.bin at startup. Without this, the promise
+    // would otherwise hang forever waiting for stdout bytes that will never
+    // arrive.
+    function onExit(code, signal) {
+      if (settled) return;
+      cleanup();
+      reject(
+        new Error(
+          `Search engine exited unexpectedly (code ${code}, signal ${signal}) before returning results.`
+        )
+      );
+    }
+
+    // Writing to the engine's stdin after it has already exited (e.g. it
+    // failed to start up) emits an error on the stdin stream itself, not on
+    // `engine` -- listen for it explicitly so it doesn't go uncaught.
+    function onStdinError(err) {
+      if (settled) return;
+      cleanup();
+      reject(err);
+    }
+
     engine.stdout.on("data", onData);
-    engine.once("error", reject);
+    engine.once("exit", onExit);
+    engine.once("error", (err) => {
+      if (settled) return;
+      cleanup();
+      reject(err);
+    });
+    engine.stdin.once("error", onStdinError);
 
     const buf = Buffer.from(vector.buffer, vector.byteOffset, vector.byteLength);
     engine.stdin.write(buf);
@@ -134,6 +194,10 @@ function shutdownEngine(engine) {
 async function runOneShot(query) {
   const corpus = loadCorpus();
   const engine = spawnEngine();
+  // On first run, @huggingface/transformers downloads the ONNX model (~90MB)
+  // to its own cache inside node_modules; this can take a while on a slow
+  // connection, so surface a status line rather than hanging silently.
+  console.error("Loading embedding model...");
   const embedder = await loadEmbedder();
 
   const vector = await embedQuery(embedder, query);
@@ -204,14 +268,22 @@ async function runRepl() {
 
 async function main() {
   const args = process.argv.slice(2);
+  const query = args.join(" ").trim();
   if (args.length === 0) {
     await runRepl();
+  } else if (query.length === 0) {
+    console.error("Search query is empty. Usage: gse \"<query>\"");
+    process.exitCode = 1;
   } else {
-    await runOneShot(args.join(" "));
+    await runOneShot(query);
   }
 }
 
 main().catch((err) => {
-  console.error(err);
-  process.exit(1);
+  console.error(err.message ?? err);
+  // Use process.exitCode (lets Node exit naturally once pending work
+  // finishes) rather than process.exit(1) -- see the comment above
+  // shutdownEngine() for why calling process.exit() after the embedding
+  // model has loaded crashes the process.
+  process.exitCode = 1;
 });
